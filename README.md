@@ -12,14 +12,18 @@ The program takes 3 arguments on command line:
 
 - Path to dictionary (list of words containing only letters, all converted to lowercase by the program).
 
-The program creates a trie from the dictionary and in each node, stores the maximal number of letters that can be added to the current word. Then a backtracking is executed on the trie (this structure allows a lot of pruning to be done). Any new optimal word found is printed in the fly. If a new word is found and has the same length as the current optimum, it becomes the new optimum if the total merging degree of the merged words is greater than the one of the current optimum.
+The program creates a trie from the dictionary and in each node, stores the maximal number of letters that can be added to the current word. Then a backtracking is executed on the trie (this structure allows a lot of pruning to be done). Any new optimal (or tied with optimal) word found is printed on the fly. If a new word is found and has the same length as the current optimum, it becomes the new optimum if the total merging degree of the merged words is greater than the one of the current optimum.
 
 Running times for minimal merging degree = 2 (including the creation of the trie):
 
 N     Running Time
 
 2     0.3s
+
 3     0.3s
+
 4     1.1s
+
 5     2m31s
+
 6     8h09m
