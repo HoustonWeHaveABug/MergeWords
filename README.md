@@ -16,14 +16,12 @@ The program creates a trie from the dictionary and in each node, stores the maxi
 
 Running times for minimal merging degree = 2 (including the creation of the trie):
 
-N     Running Time
+n=2: 0.3s
 
-2     0.3s
+n=3: 0.3s
 
-3     0.3s
+n=4: 1.1s
 
-4     1.1s
+n=5: 2m31s
 
-5     2m31s
-
-6     8h09m
+n=6: 8h09m
