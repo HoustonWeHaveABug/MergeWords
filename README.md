@@ -14,7 +14,7 @@ The program takes 3 arguments on command line:
 
 The program creates a trie from the dictionary and in each node, stores the maximal number of letters that can be added to the current word. Then a backtracking is executed on the trie (this structure allows a lot of pruning to be done). Any new optimal (or tied with optimal) word found is printed on the fly. If a new word is found and has the same length as the current optimum, it becomes the new optimum if the total merging degree of the merged words is greater than the one of the current optimum.
 
-Running times for minimal merging degree = 2 (including the creation of the trie):
+Running times for minimal merging degree = 2 using dictionary https://raw.githubusercontent.com/dolph/dictionary/master/enable1.txt (including the creation of the trie):
 
 n=2: 0.3s
 
