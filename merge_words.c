@@ -96,6 +96,9 @@ int main(int argc, char *argv[]) {
 			free_node(node_root);
 			return EXIT_FAILURE;
 		}
+		if (i < degree_min) {
+			continue;
+		}
 		buffer[i] = '\0';
 		for (i = 0; buffer[i]; i++) {
 			int symbol = tolower((int)buffer[i]), j;
@@ -156,8 +159,8 @@ int main(int argc, char *argv[]) {
 	}
 	choices_size = 1;
 	add_choice(0, NULL, '\n');
-	choices_n_max = 1;
-	degrees_sum_max = 0;
+	choices_n_max = 1+words_n*degree_min;
+	degrees_sum_max = choices_n_max-1;
 	merge_words(1, node_root);
 	free(choices);
 	free_words(words_n);
