@@ -14,6 +14,7 @@ struct letter_s {
 };
 
 struct node_s {
+	int len_min;
 	int len_max;
 	int letters_n;
 	letter_t *letters;
@@ -37,7 +38,7 @@ choice_t;
 node_t *new_node(void);
 letter_t *new_letter(node_t *, int);
 void set_letter(letter_t *, int);
-int sort_node(node_t *);
+void sort_node(node_t *);
 int compare_letters(const void *, const void *);
 int set_word(word_t *);
 void merge_words(int, node_t *);
@@ -210,24 +211,33 @@ void set_letter(letter_t *letter, int symbol) {
 	letter->next = NULL;
 }
 
-int sort_node(node_t *node) {
+void sort_node(node_t *node) {
+	node->len_min = BUFFER_SIZE+1;
 	node->len_max = 0;
 	if (node->letters_n > 0) {
 		int i;
 		qsort(node->letters, (size_t)node->letters_n, sizeof(letter_t), compare_letters);
 		for (i = 0; i < node->letters_n; i++) {
 			if (node->letters[i].next) {
-				int len = sort_node(node->letters[i].next);
-				if (len > node->len_max) {
-					node->len_max = len;
+				sort_node(node->letters[i].next);
+				if (node->letters[i].next->len_min < node->len_min) {
+					node->len_min = node->letters[i].next->len_min;
+				}
+				if (node->letters[i].next->len_max > node->len_max) {
+					node->len_max = node->letters[i].next->len_max;
 				}
 			}
+		}
+		if (node->letters[0].symbol != '\n') {
+			node->len_min++;
+		}
+		else {
+			node->len_min = 0;
 		}
 		if (node->letters[0].symbol != '\n' || node->letters_n > 1) {
 			node->len_max++;
 		}
 	}
-	return node->len_max;
 }
 
 int compare_letters(const void *a, const void *b) {
@@ -250,20 +260,22 @@ int set_word(word_t *word) {
 }
 
 void merge_words(int choices_n, node_t *node) {
-	int len_max_sum, len_max_degrees_sum, i;
+	int len_min_sum, len_max_sum, len_max_degrees_sum, i;
 	if (choices_n+node->len_max < choices_n_max) {
 		return;
 	}
+	len_min_sum = 0;
 	len_max_sum = 0;
 	len_max_degrees_sum = 0;
 	for (i = 0; i < words_n; i++) {
 		if (words[i].node->len_max+words[i].degree < degree_min) {
 			return;
 		}
+		len_min_sum += words[i].node->len_min;
 		len_max_sum += words[i].node->len_max;
 		len_max_degrees_sum += words[i].node->len_max+words[i].degree;
 	}
-	if (choices_n+len_max_sum < choices_n_max || (choices_n+len_max_sum == choices_n_max && len_max_degrees_sum < degrees_sum_max)) {
+	if (len_min_sum > node->len_max || choices_n+len_max_sum < choices_n_max || (choices_n+len_max_sum == choices_n_max && len_max_degrees_sum < degrees_sum_max)) {
 		return;
 	}
 	if (choices_n >= choices_n_max && node->letters[0].symbol == '\n' && words[0].node->letters[0].symbol == '\n' && words[0].degree >= degree_min) {
