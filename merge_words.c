@@ -25,7 +25,7 @@ typedef struct {
 	int symbols_size;
 	int symbols_n;
 	node_t *node;
-	int degree;
+	int duplicate;
 }
 word_t;
 
@@ -50,29 +50,23 @@ static int add_symbol(word_t *, int);
 static void free_words(int);
 static void free_node(node_t *);
 
-static int words_n, words_len_min, choices_size, choices_max, degrees_sum_max;
+static int words_n, choices_size, choices_max, symbols_min;
 static node_t *node_root;
 static word_t *words;
 static choice_t *choices;
 
 int main(int argc, char *argv[]) {
-	char *end, buffer[BUFFER_SIZE+2];
+	char *end, buffer[BUFFER_SIZE+1];
 	int i;
 	FILE *fd;
-	if (argc != 4) {
-		fprintf(stderr, "Usage: %s <number of words> <minimal length> <path_to_dictionary>\n", argv[0]);
+	if (argc != 3) {
+		fprintf(stderr, "Usage: %s <number of words> <path_to_dictionary>\n", argv[0]);
 		fflush(stderr);
 		return EXIT_FAILURE;
 	}
-	words_n = strtol(argv[1], &end, 10);
+	words_n = (int)strtol(argv[1], &end, 10);
 	if (*end || words_n < WORDS_N_MIN) {
 		fprintf(stderr, "Invalid number of words\n");
-		fflush(stderr);
-		return EXIT_FAILURE;
-	}
-	words_len_min = strtol(argv[2], &end, 10);
-	if (*end || words_len_min < 1) {
-		fprintf(stderr, "Invalid minimal length\n");
 		fflush(stderr);
 		return EXIT_FAILURE;
 	}
@@ -80,7 +74,7 @@ int main(int argc, char *argv[]) {
 	if (!node_root) {
 		return EXIT_FAILURE;
 	}
-	fd = fopen(argv[3], "r");
+	fd = fopen(argv[2], "r");
 	if (!fd) {
 		fprintf(stderr, "Could not open dictionary\n");
 		fflush(stderr);
@@ -89,22 +83,19 @@ int main(int argc, char *argv[]) {
 	}
 	while (fgets(buffer, BUFFER_SIZE+1, fd)) {
 		node_t *node = node_root;
-		for (i = 0; isalpha((int)buffer[i]); i++);
-		if (buffer[i] != '\n') {
+		for (i = 0; isalpha((int)buffer[i]); ++i);
+		if (i == 0 || buffer[i] != '\n') {
 			fprintf(stderr, "Invalid word in dictionary\n");
 			fflush(stderr);
 			fclose(fd);
 			free_node(node_root);
 			return EXIT_FAILURE;
 		}
-		if (i < words_len_min) {
-			continue;
-		}
 		buffer[i] = '\0';
-		for (i = 0; buffer[i]; i++) {
+		for (i = 0; buffer[i]; ++i) {
 			int symbol = tolower((int)buffer[i]), j;
 			letter_t *letter;
-			for (j = 0; j < node->letters_n && node->letters[j].symbol != symbol; j++);
+			for (j = 0; j < node->letters_n && node->letters[j].symbol != symbol; ++j);
 			if (j < node->letters_n) {
 				letter = node->letters+j;
 			}
@@ -127,7 +118,7 @@ int main(int argc, char *argv[]) {
 				letter->next = node;
 			}
 		}
-		for (i = 0; i < node->letters_n && node->letters[i].symbol != '\n'; i++);
+		for (i = 0; i < node->letters_n && node->letters[i].symbol != '\n'; ++i);
 		if (i == node->letters_n && !new_letter(node, '\n')) {
 			fclose(fd);
 			free_node(node_root);
@@ -160,8 +151,8 @@ int main(int argc, char *argv[]) {
 	}
 	choices_size = 1;
 	add_choice(0, NULL, '\n');
-	choices_max = words_n*words_len_min;
-	degrees_sum_max = choices_max;
+	choices_max = 0;
+	symbols_min = 0;
 	merge_words(1, node_root);
 	free(choices);
 	free_words(words_n);
@@ -202,7 +193,7 @@ static letter_t *new_letter(node_t *node, int symbol) {
 		}
 	}
 	set_letter(node->letters+node->letters_n, symbol);
-	node->letters_n++;
+	++node->letters_n;
 	return node->letters+node->letters_n-1;
 }
 
@@ -215,7 +206,7 @@ static void sort_node(node_t *node) {
 	node->len_max = 0;
 	if (node->letters_n > 0) {
 		int i;
-		node->len_min = BUFFER_SIZE+1;
+		node->len_min = BUFFER_SIZE;
 		qsort(node->letters, (size_t)node->letters_n, sizeof(letter_t), compare_letters);
 		for (i = node->letters_n; i--; ) {
 			if (node->letters[i].next) {
@@ -228,8 +219,8 @@ static void sort_node(node_t *node) {
 				}
 			}
 		}
-		if (node->letters[0].symbol != '\n' || node->letters_n > 1) {
-			node->len_max++;
+		if (node->letters_n > 1 || node->letters[0].symbol != '\n') {
+			++node->len_max;
 		}
 		node->len_min = node->letters[0].symbol != '\n' ? node->len_min+1:0;
 	}
@@ -253,59 +244,82 @@ static int set_word(word_t *word) {
 	word->symbols_size = 1;
 	word->symbols_n = 0;
 	word->node = node_root;
-	word->degree = 0;
 	return 1;
 }
 
 static void merge_words(int choices_n, node_t *node) {
-	int len_min_sum, len_max_sum, len_max_degrees_sum, i;
+	int len_max_sum, len_min_sum, i;
 	if (choices_n+node->len_max < choices_max) {
 		return;
 	}
-	len_min_sum = 0;
-	len_max_sum = 0;
-	len_max_degrees_sum = 0;
-	for (i = words_n; i--; ) {
-		len_min_sum += words[i].node->len_min;
+	len_max_sum = words[0].node->len_max;
+	len_min_sum = words[0].node->len_min;
+	for (i = 1; i < words_n; ++i) {
+		int j;
+		for (j = 0; j < i && words[j].node != words[i].node; ++j);
+		words[i].duplicate = j < i;
+		if (words[i].duplicate && words[i].node->letters_n == 1 && words[i].node->letters[0].symbol == '\n') {
+			return;
+		}
 		len_max_sum += words[i].node->len_max;
-		len_max_degrees_sum += words[i].node->len_max+words[i].degree;
+		len_min_sum += words[i].node->len_min;
 	}
-	if (len_min_sum > node->len_max || choices_n+len_max_sum < choices_max || (choices_n+len_max_sum == choices_max && len_max_degrees_sum <= degrees_sum_max)) {
+	if (len_min_sum > node->len_max || choices_n+len_max_sum < choices_max) {
 		return;
 	}
-	if (choices_n >= choices_max && node->letters[0].symbol == '\n' && words[0].node->letters[0].symbol == '\n') {
-		int degrees_sum = words[0].degree;
-		for (i = 1; i < words_n && words[i].node->letters[0].symbol == '\n'; i++) {
-			int j;
-			for (j = 0; j < i && words[j].node != words[i].node; j++);
-			if (j < i) {
-				break;
+	if (choices_n+node->len_max == choices_max) {
+		int symbols_hi = words[0].symbols_n+words[0].node->len_max, symbols_sum_lo;
+		if (symbols_hi <= symbols_min) {
+			return;
+		}
+		if (words[0].symbols_n+words[0].node->len_min <= symbols_min) {
+			symbols_sum_lo = symbols_min+1;
+		}
+		else {
+			symbols_sum_lo = words[0].symbols_n+words[0].node->len_min;
+		}
+		for (i = 1; i < words_n; ++i) {
+			if (words[i].symbols_n+words[i].node->len_max < symbols_hi) {
+				symbols_hi = words[i].symbols_n+words[i].node->len_max;
+				if (symbols_hi <= symbols_min) {
+					return;
+				}
 			}
-			degrees_sum += words[i].degree;
+			if (words[i].symbols_n+words[i].node->len_min <= symbols_min) {
+				symbols_sum_lo += symbols_min+1;
+			}
+			else {
+				symbols_sum_lo += words[i].symbols_n+words[i].node->len_min;
+			}
+		}
+		if (symbols_sum_lo >= choices_max) {
+			return;
+		}
+	}
+	if (choices_n >= choices_max && node->letters[0].symbol == '\n' && words[0].node->letters[0].symbol == '\n') {
+		int symbols_lo = words[0].symbols_n;
+		for (i = 1; i < words_n && !words[i].duplicate && words[i].node->letters[0].symbol == '\n'; ++i) {
+			if (words[i].symbols_n < symbols_lo) {
+				symbols_lo = words[i].symbols_n;
+			}
 		}
 		if (i == words_n) {
 			if (choices_n > choices_max) {
 				choices_max = choices_n;
-				degrees_sum_max = degrees_sum;
+				symbols_min = symbols_lo;
 				print_solution();
 			}
 			else {
-				if (degrees_sum > degrees_sum_max) {
-					degrees_sum_max = degrees_sum;
+				if (symbols_lo > symbols_min) {
+					symbols_min = symbols_lo;
 					print_solution();
 				}
-			}
-			if (degrees_sum_max+1 == choices_max) {
-				choices_max++;
-				degrees_sum_max = words_n*words_len_min-1;
 			}
 		}
 	}
 	choose_symbol(choices_n, node, words);
-	for (i = 1; i < words_n; i++) {
-		int j;
-		for (j = 0; j < i && words[j].node != words[i].node; j++);
-		if (j == i) {
+	for (i = 1; i < words_n; ++i) {
+		if (!words[i].duplicate) {
 			choose_symbol(choices_n, node, words+i);
 		}
 	}
@@ -313,18 +327,18 @@ static void merge_words(int choices_n, node_t *node) {
 
 static void print_solution(void) {
 	int i;
-	printf("Length %d\nDegrees Sum %d\n", choices_max-1, degrees_sum_max);
-	for (i = 1; i < choices_max; i++) {
+	printf("Total Length %d\nMinimum Length %d\n", choices_max-1, symbols_min);
+	for (i = 1; i < choices_max; ++i) {
 		putchar(choices[i].symbol);
 	}
 	puts("");
-	for (i = 0; i < words_n; i++) {
+	for (i = 0; i < words_n; ++i) {
 		int j;
-		for (j = 1; j < choices_max; j++) {
+		for (j = 1; j < choices_max; ++j) {
 			putchar(choices[j].word == words+i ? '*':'.');
 		}
 		putchar(' ');
-		for (j = 0; j < words[i].symbols_n; j++) {
+		for (j = 0; j < words[i].symbols_n; ++j) {
 			putchar(words[i].symbols[j]);
 		}
 		puts("");
@@ -333,24 +347,17 @@ static void print_solution(void) {
 }
 
 static void choose_symbol(int choices_n, node_t *node, word_t *word) {
-	int letters_idx_min, letters_idx = 0, i;
-	letters_idx_min = word->node->letters[0].symbol == '\n' ? 1:0;
-	for (i = letters_idx_min; i < word->node->letters_n; i++) {
+	int letters_idx_min = word->node->letters[0].symbol == '\n' ? 1:0, letters_idx = 0, i;
+	for (i = letters_idx_min; i < word->node->letters_n; ++i) {
 		while (letters_idx < node->letters_n && node->letters[letters_idx].symbol < word->node->letters[i].symbol) {
-			letters_idx++;
+			++letters_idx;
 		}
-		if (letters_idx < node->letters_n && node->letters[letters_idx].symbol == word->node->letters[i].symbol && add_choice(choices_n, word, node->letters[letters_idx].symbol) && add_symbol(word, word->node->letters[i].symbol)) {
+		if (letters_idx < node->letters_n && node->letters[letters_idx].symbol == word->node->letters[i].symbol && add_choice(choices_n, word, node->letters[letters_idx].symbol) && add_symbol(word, node->letters[letters_idx].symbol)) {
 			node_t *word_node = word->node;
 			word->node = word->node->letters[i].next;
-			if (choices[choices_n].word != choices[choices_n-1].word) {
-				word->degree++;
-			}
 			merge_words(choices_n+1, node->letters[letters_idx].next);
-			if (choices[choices_n].word != choices[choices_n-1].word) {
-				word->degree--;
-			}
 			word->node = word_node;
-			word->symbols_n--;
+			--word->symbols_n;
 		}
 	}
 }
@@ -364,7 +371,7 @@ static int add_choice(int choices_n, word_t *word, int symbol) {
 			return 0;
 		}
 		choices = choices_tmp;
-		choices_size++;
+		++choices_size;
 	}
 	set_choice(choices+choices_n, word, symbol);
 	return 1;
@@ -384,7 +391,7 @@ static int add_symbol(word_t *word, int symbol) {
 			return 0;
 		}
 		word->symbols = symbols;
-		word->symbols_size++;
+		++word->symbols_size;
 	}
 	word->symbols[word->symbols_n++] = symbol;
 	return 1;
